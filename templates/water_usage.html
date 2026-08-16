@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+
+{% block title %}Water usage{% endblock %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/water_system.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ws">
+
+    <div class="ws-head">
+        <h1>Water usage</h1>
+        <span class="ws-status"><span class="ws-dot" id="wsDot"></span><span id="wsStatus">loading</span></span>
+        <span class="ws-stamp" id="wsStamp">&mdash;</span>
+    </div>
+
+    <nav class="ws-tabs">
+        <a href="/water-system">Overview</a>
+        <a href="/water-system/usage" class="active">Water usage</a>
+        <a href="/water-system/temperature">Temperature</a>
+    </nav>
+
+    <!-- Live meter. Sits at the top because when something is wrong with the
+         flow sensor this is the only view that shows it. -->
+    <div class="ws-card ws-chart-card" style="margin-bottom:24px">
+        <div class="ws-card-head">
+            <h2>Live meter</h2>
+            <span class="ws-src">Flæði &middot; raw readings</span>
+        </div>
+
+        <div class="ws-live">
+            <div class="ws-live-now">
+                <div>
+                    <span class="ws-live-rate" id="wsLiveRate">&mdash;</span>
+                    <span class="ws-u" style="font-size:.9rem">L/min</span>
+                </div>
+                <div class="ws-live-sub" id="wsLiveSub">waiting for a reading&hellip;</div>
+                <div class="ws-age-bar"><i id="wsAgeBar" style="width:0%"></i></div>
+            </div>
+
+            <div class="ws-log">
+                <table>
+                    <thead>
+                        <tr><th>time</th><th>counter</th><th>step</th><th>window</th><th>L/min</th></tr>
+                    </thead>
+                    <tbody id="wsLiveLog">
+                        <tr><td colspan="5" style="text-align:center;padding:20px">loading&hellip;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Calibration capture: pour a known volume, read off the true
+             pulses-per-litre. This is how you tell a wrong constant (a fixed
+             ratio every run) from lost pulses (a ratio that wanders). -->
+        <div class="ws-cal">
+            <div class="ws-cal-row">
+                <button id="wsCalBtn">Start measurement</button>
+                <button id="wsCalReset" class="ghost">Reset</button>
+                <label for="wsCalActual">Litres actually poured</label>
+                <input id="wsCalActual" type="number" min="0" step="0.1" placeholder="18.0" inputmode="decimal">
+            </div>
+            <div class="ws-cal-out" id="wsCalOut">
+                Start a measurement, run a known volume through the meter, then stop and enter
+                what you actually poured. Repeat it twice: a <em>consistent</em> ratio means the
+                pulses-per-litre constant is simply wrong and can be corrected in firmware; a
+                ratio that changes between runs means pulses are being lost, which no constant fixes.
+            </div>
+        </div>
+    </div>
+
+    <!-- Three figures: two independent measures of outflow that cross-check
+         each other, and collection, which only the level sensor can see. -->
+    <div class="ws-trio">
+        <div class="ws-card">
+            <div class="ws-card-head"><h2>Through the meter</h2><span class="ws-src">Flæði</span></div>
+            <div class="ws-body">
+                <span class="ws-v" id="wsMeter">&mdash;</span> <span class="ws-u">L out</span>
+                <p class="ws-note" id="wsMeterState">&nbsp;</p>
+                <p class="ws-note">Sum of <em>positive</em> deltas on the flow counter, so its
+                   resets never register as usage.</p>
+            </div>
+        </div>
+        <div class="ws-card">
+            <div class="ws-card-head"><h2>Out of the tank</h2><span class="ws-src">Vatnsmagn</span></div>
+            <div class="ws-body">
+                <span class="ws-v" id="wsLevelOut">&mdash;</span> <span class="ws-u">L out</span>
+                <p class="ws-note">Sum of level <em>falls</em> only. Rises are rain, not negative
+                   usage, so they are counted separately.</p>
+            </div>
+        </div>
+        <div class="ws-card ws-in">
+            <div class="ws-card-head"><h2>Collected</h2><span class="ws-src">regnvatn</span></div>
+            <div class="ws-body">
+                <span class="ws-v" id="wsCollected">&mdash;</span> <span class="ws-u">L in</span>
+                <p class="ws-note">Sum of level <em>rises</em>. The meter never sees this: rain
+                   enters above it. Under-reports when the tank is near full, since the surplus
+                   leaves by the overflow unmeasured.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="ws-banner" id="wsCrossCheck">
+        <span class="material-icons">info</span>
+        <span>Comparing the two outflow figures&hellip;</span>
+    </div>
+
+    <div class="ws-banner warn">
+        <span class="material-icons">filter_alt</span>
+        <span>Level figures are median-filtered over 10&nbsp;minutes and only commit changes above
+              a <b>2&nbsp;cm</b> deadband. The echo sensor flips between quantised values about
+              1.8&nbsp;cm apart; without this, that alone would invent hundreds of litres a day.
+              Steps over <b>8&nbsp;cm</b> are rejected as physically impossible for water.</span>
+    </div>
+
+    <div class="ws-card ws-chart-card">
+        <div class="ws-card-head"><h2>Used per hour</h2><span class="ws-src">today &middot; Flæði</span></div>
+        <div id="wsUsageChart" class="ws-chart"></div>
+    </div>
+
+    <div class="ws-card ws-chart-card">
+        <div class="ws-card-head">
+            <h2>Tank level</h2>
+            <span class="ws-src">rises are rain, falls are usage</span>
+        </div>
+        <div class="ws-controls" id="wsLevelRange">
+            <button data-period="day">24h</button>
+            <button data-period="week" class="active">7d</button>
+            <button data-period="month">30d</button>
+        </div>
+        <div id="wsLevelChart" class="ws-chart"></div>
+    </div>
+
+    <div class="ws-card ws-chart-card">
+        <div class="ws-card-head"><h2>Flow rate</h2><span class="ws-src">peak per bucket</span></div>
+        <div id="wsFlowChart" class="ws-chart ws-chart-sm"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="{{ url_for('static', filename='js/water_system.js') }}"></script>
+<script>
+let charts = {};
+let currentPeriod = 'week';
+
+function buildCharts() {
+    const c = WS.theme();
+    const axis = WS.axis(c);
+
+    charts.usage = WS.init('wsUsageChart');
+    charts.level = WS.init('wsLevelChart');
+    charts.flow  = WS.init('wsFlowChart');
+
+    if (charts.usage) charts.usage.setOption({
+        tooltip: WS.tooltip(c, ' L'),
+        grid: { left: 8, right: 16, bottom: 4, top: 26, containLabel: true },
+        xAxis: { type: 'category', data: [], ...axis },
+        yAxis: { type: 'value', name: 'litres', nameTextStyle: { color: c.textMuted, fontSize: 10, align: 'left' }, ...axis },
+        series: [{ type: 'bar', data: [], itemStyle: { color: WS_WATER, borderRadius: [3,3,0,0] } }]
+    });
+
+    if (charts.level) charts.level.setOption({
+        tooltip: WS.tooltip(c, ' L'),
+        grid: { left: 8, right: 16, bottom: 4, top: 24, containLabel: true },
+        xAxis: { type: 'time', ...axis },
+        yAxis: { type: 'value', min: 0, name: 'litres', nameTextStyle: { color: c.textMuted, fontSize: 10, align: 'left' }, ...axis },
+        series: [{
+            type: 'line', smooth: true, showSymbol: false, connectNulls: false, data: [],
+            lineStyle: { width: 2.5, color: WS_WATER },
+            areaStyle: { color: WS_WATER, opacity: .14 }
+        }]
+    });
+
+    if (charts.flow) charts.flow.setOption({
+        tooltip: WS.tooltip(c, ' L/min'),
+        grid: { left: 8, right: 16, bottom: 4, top: 26, containLabel: true },
+        xAxis: { type: 'time', ...axis },
+        yAxis: { type: 'value', name: 'L/min', nameTextStyle: { color: c.textMuted, fontSize: 10, align: 'left' }, ...axis },
+        series: [{
+            type: 'line', smooth: true, showSymbol: false, data: [],
+            lineStyle: { width: 2, color: WS_WATER },
+            areaStyle: { color: WS_WATER, opacity: .12 }
+        }]
+    });
+}
+
+async function loadSummary() {
+    const w = await fetch('/api/water/summary').then(r => r.json());
+    if (w.error) throw new Error('api error');
+
+    const t = w.today;
+    document.getElementById('wsMeter').textContent     = WS.fmt(t.used_meter);
+    document.getElementById('wsLevelOut').textContent  = WS.fmt(t.used_level);
+    document.getElementById('wsCollected').textContent = '+' + WS.fmt(t.collected);
+    document.getElementById('wsStamp').textContent = WS.clock();
+    WS.setStatus('wsStatus', 'wsDot', w.tank.last_reading, 'today, since midnight');
+
+    // Distinguish "no water is flowing" from "nothing is being measured".
+    // A stopped meter and an idle meter both read 0 otherwise.
+    const f = w.flow || {};
+    const state = document.getElementById('wsMeterState');
+    if (!f.reporting) {
+        state.className = 'ws-note warn';
+        state.textContent = 'Meter is not reporting at all.';
+    } else if (f.flow_lpm > 0) {
+        state.className = 'ws-note';
+        state.textContent = 'Flowing now: ' + WS.fmt(f.flow_lpm, 2) + ' L/min · counter at ' +
+                            f.total_liters + ' L';
+    } else if (f.idle_seconds === null || f.idle_seconds === undefined) {
+        state.className = 'ws-note warn';
+        state.textContent = 'Counter has never moved · sits at ' + f.total_liters + ' L';
+    } else {
+        const mins = Math.round(f.idle_seconds / 60);
+        const idleLong = f.idle_seconds > 3600;
+        state.className = 'ws-note' + (idleLong ? ' warn' : '');
+        state.textContent = 'No flow now · counter last moved ' +
+            (mins < 60 ? mins + ' min' : Math.round(mins / 60) + ' h') +
+            ' ago, at ' + f.total_liters + ' L';
+    }
+
+    // The cross-check only means something when both figures exist.
+    const box = document.getElementById('wsCrossCheck');
+    const icon = box.querySelector('.material-icons');
+    const text = box.querySelector('span:last-child');
+
+    if (t.readings_used === 0) {
+        box.className = 'ws-banner warn';
+        icon.textContent = 'visibility_off';
+        text.innerHTML = 'The tank level has been inside the blind band all day, so there is ' +
+            'nothing to cross-check against. Only the flow meter is contributing.';
+    } else if (t.used_meter === 0 && t.used_level === 0) {
+        box.className = 'ws-banner info';
+        icon.textContent = 'info';
+        text.textContent = 'No water movement recorded today by either method.';
+    } else {
+        const bigger = Math.max(t.used_meter, t.used_level);
+        const gap = bigger ? Math.abs(t.used_meter - t.used_level) / bigger * 100 : 0;
+        const agree = gap < 15;
+        box.className = 'ws-banner ' + (agree ? 'ok' : 'warn');
+        icon.textContent = agree ? 'check_circle' : 'error_outline';
+        text.innerHTML = 'Two independent measurements, <b>' + gap.toFixed(1) + '%</b> apart. ' +
+            (agree ? 'A widening gap would mean a leak between tank and meter, or a drifting sensor.'
+                   : 'That is a wide gap — worth checking for a leak between the tank and the meter.');
+    }
+    return w;
+}
+
+async function loadHistory(period) {
+    const h = await fetch('/api/water/history?period=' + period).then(r => r.json());
+    if (h.error) throw new Error('api error');
+
+    if (charts.usage) {
+        charts.usage.setOption({
+            xAxis: { data: h.hourly_usage.map(x => x.hour) },
+            series: [{ data: h.hourly_usage.map(x => x.litres) }]
+        });
+    }
+    if (charts.level) {
+        // null for clamped buckets, so the line breaks instead of drawing a
+        // flat lie across the blind band.
+        const pts = h.level.map(p => [p.timestamp, p.litres]);
+        const hasData = pts.some(p => p[1] !== null && p[1] !== undefined);
+        charts.level.setOption({
+            series: [{ data: pts }],
+            // In-chart empty state: with the tank at or near full, every
+            // bucket is clamped and the line has nothing to draw - a silent
+            // blank card reads as broken.
+            graphic: [{
+                type: 'text', left: 'center', top: 'middle',
+                invisible: hasData, silent: true,
+                style: {
+                    text: 'Level has been inside the sensor\'s blind band for this whole range —\ntank at or near full. The line resumes when the level drops below 25 cm.',
+                    textAlign: 'center',
+                    fill: WS.theme().textMuted,
+                    font: '12px IBM Plex Mono, monospace',
+                    lineHeight: 20
+                }
+            }]
+        });
+    }
+    if (charts.flow) {
+        charts.flow.setOption({ series: [{ data: h.flow.map(p => [p.timestamp, p.peak]) }] });
+    }
+}
+
+async function refresh() {
+    try {
+        const w = await loadSummary();
+        await loadHistory(currentPeriod);
+
+        // Mark the blind ceiling once we know where it is.
+        if (charts.level && w.tank) {
+            charts.level.setOption({ series: [{
+                markLine: {
+                    silent: true, symbol: 'none',
+                    data: [{ yAxis: w.tank.litres }],
+                    lineStyle: { color: '#f59e0b', type: 'dashed', width: 1.25 },
+                    label: { formatter: 'sensor blind above here', color: '#f59e0b',
+                             fontSize: 10, position: 'insideEndTop',
+                             fontFamily: 'IBM Plex Mono, monospace' }
+                }
+            }]});
+        }
+    } catch (e) {
+        console.error('usage load failed', e);
+        document.getElementById('wsStatus').textContent = 'could not load data';
+        document.getElementById('wsDot').className = 'ws-dot down';
+    }
+}
+
+/* ---------------- live meter ----------------
+   The device posts roughly every 36s, so that is the real resolution. We poll
+   faster only to notice a new reading promptly and to age the current one -
+   never to imply data we do not have. */
+const POST_INTERVAL_S = 36;
+let assumedPPL = 450;
+let cal = null;          // { startLitres, startedAt, stoppedAt, endLitres }
+let lastSeenTs = null;
+let latestTotal = null;   // newest counter value, anchor for calibration
+
+async function loadLive() {
+    const d = await fetch('/api/water/live?limit=25').then(r => r.json());
+    if (d.error) throw new Error('api error');
+    assumedPPL = d.assumed_pulses_per_liter || 450;
+
+    const rows = d.readings || [];
+    if (!rows.length) return;
+    const latest = rows[rows.length - 1];
+    lastSeenTs = latest.timestamp;
+    latestTotal = latest.total_liters;
+
+    // Rate from the counter delta, not the firmware's flow_lpm - that has been
+    // seen reporting 0.0 in windows where the counter plainly advanced.
+    const rate = latest.implied_lpm;
+    const rateEl = document.getElementById('wsLiveRate');
+    rateEl.textContent = rate === null || rate === undefined ? '0.00' : rate.toFixed(2);
+    rateEl.classList.toggle('flowing', !!rate);
+
+    const moved = rows.filter(r => r.step > 0).length;
+    document.getElementById('wsLiveSub').innerHTML =
+        'counter <b style="color:var(--text)">' + latest.total_liters.toFixed(3) + ' L</b><br>' +
+        'firmware reports ' + (latest.flow_lpm === null ? '--' : Number(latest.flow_lpm).toFixed(2)) + ' L/min<br>' +
+        moved + ' of last ' + rows.length + ' windows moved<br>' +
+        '<span id="wsAgeTxt">just now</span>';
+
+    // rolling log, newest first
+    const log = document.getElementById('wsLiveLog');
+    log.textContent = '';
+    [...rows].reverse().slice(0, 14).forEach((r, i) => {
+        const tr = document.createElement('tr');
+        if (r.step > 0) tr.className = 'moved';
+        if (i === 0) tr.className += ' latest';
+        const cells = [
+            (r.timestamp || '').slice(11, 19),
+            r.total_liters.toFixed(3),
+            r.step === null ? '--' : (r.step > 0 ? '+' : '') + r.step.toFixed(3),
+            r.seconds === null ? '--' : r.seconds.toFixed(0) + 's',
+            r.implied_lpm === null ? '--' : r.implied_lpm.toFixed(2)
+        ];
+        cells.forEach((v, idx) => {
+            const td = document.createElement('td');
+            if (idx === 2) td.className = 'step';
+            td.textContent = v;
+            tr.appendChild(td);
+        });
+        log.appendChild(tr);
+    });
+
+    if (cal && !cal.stoppedAt) cal.endLitres = latest.total_liters;
+    renderCal(latest.total_liters);
+}
+
+/* Age the newest reading between polls so a gap reads as "waiting", not "dead". */
+function tickAge() {
+    if (!lastSeenTs) return;
+    const age = WS.ageSeconds(lastSeenTs);
+    if (age === null) return;
+    const bar = document.getElementById('wsAgeBar');
+    if (bar) bar.style.width = Math.min(100, (age / POST_INTERVAL_S) * 100) + '%';
+    const txt = document.getElementById('wsAgeTxt');
+    if (txt) {
+        txt.textContent = age < 5 ? 'just now'
+            : age < 90 ? Math.round(age) + 's since last reading'
+            : Math.round(age / 60) + ' min since last reading — meter may be offline';
+    }
+}
+
+function renderCal(currentLitres) {
+    const out = document.getElementById('wsCalOut');
+    const btn = document.getElementById('wsCalBtn');
+    if (!cal) { btn.textContent = 'Start measurement'; return; }
+
+    btn.textContent = cal.stoppedAt ? 'Start measurement' : 'Stop measurement';
+    const end = cal.stoppedAt ? cal.endLitres : currentLitres;
+    const counted = Math.max(0, end - cal.startLitres);
+    const elapsed = ((cal.stoppedAt || Date.now()) - cal.startedAt) / 1000;
+    const pulses = counted * assumedPPL;
+
+    let html = (cal.stoppedAt ? 'Measurement finished' : 'Measuring&hellip;') +
+        ' &middot; <b>' + Math.round(elapsed) + 's</b> &middot; counter moved ' +
+        '<b>' + counted.toFixed(3) + ' L</b> (~<b>' + Math.round(pulses) + '</b> pulses at ' +
+        assumedPPL + ' p/L)';
+
+    const actual = parseFloat(document.getElementById('wsCalActual').value);
+    if (actual > 0 && counted > 0) {
+        const truePPL = pulses / actual;
+        const factor = actual / counted;
+        html += '<span class="big">' + truePPL.toFixed(1) + ' pulses per litre</span>' +
+            'The meter recorded <b>' + factor.toFixed(1) + '&times;</b> less than you poured. ' +
+            'If a second run gives the same figure, set <b>pulses_per_liter</b> to about ' +
+            '<b>' + truePPL.toFixed(0) + '</b>. If it differs, pulses are being lost and the ' +
+            'constant is not the problem.';
+    } else if (actual > 0 && counted === 0 && cal.stoppedAt) {
+        // Only a verdict once the run is finished - mid-run this just means
+        // the next reading has not landed yet.
+        html += '<span class="big">no pulses counted</span>' +
+            'The meter registered nothing at all for ' + actual + ' L. That is a dead signal, ' +
+            'not a calibration error.';
+    } else if (actual > 0 && counted === 0) {
+        html += '<br>Waiting for the counter to move. Readings land about every ' +
+            POST_INTERVAL_S + 's, so give it at least one window.';
+    }
+    out.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('wsCalBtn').addEventListener('click', () => {
+        if (latestTotal === null) return;          // nothing to anchor to yet
+        if (!cal || cal.stoppedAt) {
+            cal = { startLitres: latestTotal, startedAt: Date.now(),
+                    stoppedAt: null, endLitres: latestTotal };
+        } else {
+            cal.stoppedAt = Date.now();
+        }
+        renderCal(latestTotal);
+    });
+    document.getElementById('wsCalReset').addEventListener('click', () => {
+        cal = null;
+        document.getElementById('wsCalActual').value = '';
+        document.getElementById('wsCalOut').textContent =
+            'Start a measurement, run a known volume through the meter, then stop and enter ' +
+            'what you actually poured.';
+        document.getElementById('wsCalBtn').textContent = 'Start measurement';
+    });
+    document.getElementById('wsCalActual').addEventListener('input', () => renderCal(cal ? cal.endLitres : 0));
+
+    loadLive().catch(e => console.error('live load failed', e));
+    setInterval(() => loadLive().catch(e => console.error(e)), 5000);
+    setInterval(tickAge, 1000);
+
+    buildCharts();
+    refresh();
+    setInterval(refresh, 30000);
+
+    document.getElementById('wsLevelRange').addEventListener('click', ev => {
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        document.querySelectorAll('#wsLevelRange button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPeriod = btn.dataset.period;
+        loadHistory(currentPeriod).catch(e => console.error(e));
+    });
+
+    window.addEventListener('resize', () => Object.values(charts).forEach(c => c && c.resize()));
+});
+</script>
+{% endblock %}

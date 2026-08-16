@@ -1,0 +1,166 @@
+{
+ "flow": [
+  {
+   "mean": 0.645,
+   "peak": 1.27,
+   "timestamp": 1786737600000
+  },
+  {
+   "mean": 0.0,
+   "peak": 0.0,
+   "timestamp": 1786739400000
+  },
+  {
+   "mean": 1.059,
+   "peak": 20.86,
+   "timestamp": 1786744800000
+  },
+  {
+   "mean": 0.0,
+   "peak": 0.0,
+   "timestamp": 1786746600000
+  },
+  {
+   "mean": 1.853,
+   "peak": 77.44,
+   "timestamp": 1786748400000
+  },
+  {
+   "mean": 1.392,
+   "peak": 27.63,
+   "timestamp": 1786750200000
+  }
+ ],
+ "hourly_usage": [
+  {
+   "hour": "00",
+   "litres": 0.03
+  },
+  {
+   "hour": "01",
+   "litres": 0.0
+  },
+  {
+   "hour": "02",
+   "litres": 0.0
+  },
+  {
+   "hour": "03",
+   "litres": 0.0
+  },
+  {
+   "hour": "04",
+   "litres": 0.0
+  },
+  {
+   "hour": "05",
+   "litres": 0.0
+  },
+  {
+   "hour": "06",
+   "litres": 0.0
+  },
+  {
+   "hour": "07",
+   "litres": 0.0
+  },
+  {
+   "hour": "08",
+   "litres": 0.0
+  },
+  {
+   "hour": "09",
+   "litres": 0.0
+  },
+  {
+   "hour": "10",
+   "litres": 0.0
+  },
+  {
+   "hour": "11",
+   "litres": 0.0
+  },
+  {
+   "hour": "12",
+   "litres": 0.0
+  },
+  {
+   "hour": "13",
+   "litres": 0.0
+  },
+  {
+   "hour": "14",
+   "litres": 0.0
+  },
+  {
+   "hour": "15",
+   "litres": 0.0
+  },
+  {
+   "hour": "16",
+   "litres": 0.0
+  },
+  {
+   "hour": "17",
+   "litres": 0.0
+  },
+  {
+   "hour": "18",
+   "litres": 0.0
+  },
+  {
+   "hour": "19",
+   "litres": 0.0
+  },
+  {
+   "hour": "20",
+   "litres": 0.0
+  },
+  {
+   "hour": "21",
+   "litres": 0.0
+  },
+  {
+   "hour": "22",
+   "litres": 0.0
+  },
+  {
+   "hour": "23",
+   "litres": 0.0
+  }
+ ],
+ "level": [
+  {
+   "clamped": true,
+   "litres": null,
+   "timestamp": 1786653000000
+  },
+  {
+   "clamped": true,
+   "litres": null,
+   "timestamp": 1786654800000
+  },
+  {
+   "clamped": true,
+   "litres": null,
+   "timestamp": 1786656600000
+  },
+  {
+   "clamped": true,
+   "litres": null,
+   "timestamp": 1786658400000
+  },
+  {
+   "clamped": true,
+   "litres": null,
+   "timestamp": 1786660200000
+  },
+  {
+   "clamped": true,
+   "litres": null,
+   "timestamp": 1786662000000
+  }
+ ],
+ "period": "week",
+ "_note": "level/flow truncated to 6 points each for reference"
+}

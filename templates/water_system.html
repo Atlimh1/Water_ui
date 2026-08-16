@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Vatnskerfi{% endblock %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/water_system.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ws">
+
+    <div class="ws-head">
+        <h1>Vatnskerfi</h1>
+        <span class="ws-status"><span class="ws-dot" id="wsDot"></span><span id="wsStatus">loading</span></span>
+        <span class="ws-stamp" id="wsStamp">&mdash;</span>
+    </div>
+
+    <nav class="ws-tabs">
+        <a href="/water-system" class="active">Overview</a>
+        <a href="/water-system/usage">Water usage</a>
+        <a href="/water-system/temperature">Temperature</a>
+    </nav>
+
+    <div class="ws-overview">
+
+        <!-- Tank, drawn as a section through a 1000 L IBC. The blind band and
+             the overflow are drawn because they are why the reading is a range
+             rather than a number. -->
+        <div class="ws-card" style="padding-bottom:18px">
+            <div class="ws-card-head">
+                <h2>Vatnsmagn</h2>
+                <span class="ws-src">JSN-SR04T</span>
+            </div>
+
+            <div class="ws-tank-wrap ws-tank">
+                <svg viewBox="0 0 240 300" role="img"
+                     aria-label="Tank cross-section showing water level, the overflow, and the sensor's blind band">
+                    <defs>
+                        <linearGradient id="wsWaterGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="var(--ws-water-top)" stop-opacity=".55"/>
+                            <stop offset="100%" stop-color="var(--ws-water-bot)" stop-opacity=".85"/>
+                        </linearGradient>
+                        <pattern id="wsHatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+                            <line x1="0" y1="0" x2="0" y2="7" stroke="var(--warning)" stroke-width="1" opacity=".4"/>
+                        </pattern>
+                        <clipPath id="wsTankClip"><rect x="61" y="69" width="118" height="192"/></clipPath>
+                    </defs>
+
+                    <!-- rainwater inlet, rising from the lid -->
+                    <g class="rule">
+                        <line x1="68" y1="26" x2="68" y2="58"/>
+                        <line x1="84" y1="26" x2="84" y2="58"/>
+                        <ellipse cx="76" cy="26" rx="8" ry="2.8" fill="none"/>
+                    </g>
+                    <text x="26" y="21" class="anno">regnvatn</text>
+
+                    <!-- echo probe, mounted through the lid -->
+                    <rect x="112" y="44" width="16" height="14" rx="2" class="vessel"/>
+                    <line x1="106" y1="58" x2="134" y2="58" class="vessel"/>
+                    <text x="138" y="53" class="anno">echo</text>
+
+                    <path d="M114 68 L92 250" class="cone"/>
+                    <path d="M126 68 L148 250" class="cone"/>
+
+                    <g clip-path="url(#wsTankClip)">
+                        <rect id="wsFill" x="61" y="118.5" width="118" height="143.5" fill="url(#wsWaterGrad)"/>
+                        <path id="wsSurface" class="ws-wave"
+                              d="M45 118.5 q 20 -5 40 0 t 40 0 t 40 0 t 40 0 t 40 0 V 136.5 H 45 Z"
+                              fill="var(--ws-water-top)" opacity=".45"/>
+                    </g>
+
+                    <!-- above the overflow: water can never reach here -->
+                    <rect x="61" y="68" width="118" height="30.5" fill="var(--bg-secondary)" opacity=".55"/>
+                    <!-- overflow down to the blind limit: real water, unresolvable -->
+                    <rect x="61" y="98.5" width="118" height="20" fill="url(#wsHatch)"/>
+                    <line x1="61" y1="118.5" x2="179" y2="118.5" stroke="var(--warning)" stroke-width="1.25" stroke-dasharray="4 3"/>
+
+                    <g class="rule">
+                        <line x1="180" y1="94" x2="198" y2="94"/>
+                        <line x1="180" y1="103" x2="198" y2="103"/>
+                        <path d="M195 106 L198 103 L198 94"/>
+                    </g>
+                    <line x1="61" y1="98.5" x2="179" y2="98.5" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2 2"/>
+                    <text x="65" y="95" class="anno">yfirfall</text>
+
+                    <g class="hair">
+                        <line x1="60" y1="96"  x2="180" y2="96"/>
+                        <line x1="60" y1="128" x2="180" y2="128"/>
+                        <line x1="60" y1="160" x2="180" y2="160"/>
+                        <line x1="60" y1="192" x2="180" y2="192"/>
+                        <line x1="60" y1="224" x2="180" y2="224"/>
+                        <line x1="90"  y1="68" x2="90"  y2="262"/>
+                        <line x1="120" y1="68" x2="120" y2="262"/>
+                        <line x1="150" y1="68" x2="150" y2="262"/>
+                    </g>
+
+                    <path d="M60 68 L60 254 Q60 262 68 262 L172 262 Q180 262 180 254 L180 68" class="vessel"/>
+                    <rect x="48" y="58" width="144" height="10" rx="2" class="vessel"/>
+                    <path d="M48 264 L192 264 L192 276 L48 276 Z" class="rule"/>
+                    <line x1="76" y1="264" x2="76" y2="276" class="hair"/>
+                    <line x1="164" y1="264" x2="164" y2="276" class="hair"/>
+
+                    <line x1="34" y1="68" x2="34" y2="118.5" class="rule"/>
+                    <path d="M31 73 L34 68 L37 73" class="rule"/>
+                    <path d="M31 113.5 L34 118.5 L37 113.5" class="rule"/>
+                    <line x1="30" y1="68"  x2="60" y2="68" class="hair"/>
+                    <line x1="30" y1="118.5" x2="61" y2="118.5" class="hair"/>
+                    <text x="4" y="96" class="anno-em" id="wsGapLabel">&#8212;</text>
+
+                    <line x1="208" y1="68" x2="208" y2="262" class="rule"/>
+                    <path d="M205 73 L208 68 L211 73" class="rule"/>
+                    <path d="M205 257 L208 262 L211 257" class="rule"/>
+                    <line x1="192" y1="68" x2="212" y2="68" class="hair"/>
+                    <line x1="180" y1="262" x2="212" y2="262" class="hair"/>
+                    <text x="213" y="161" class="anno">96cm</text>
+                    <text x="213" y="172" class="anno">IBC</text>
+
+                    <text x="65" y="113" class="anno-warn">blind band</text>
+                </svg>
+            </div>
+
+            <div class="ws-readout">
+                <span class="ws-v" id="wsTankValue">&mdash;</span>
+                <span class="ws-u" id="wsTankUnit">L</span>
+            </div>
+            <div class="ws-note" id="wsTankNote" style="padding:10px 22px 0 22px">&nbsp;</div>
+        </div>
+
+        <div class="ws-stack">
+
+            <div class="ws-card">
+                <div class="ws-card-head">
+                    <h2>Water used</h2>
+                    <span class="ws-src">Flæði &middot; YF-S201</span>
+                </div>
+                <div class="ws-body">
+                    <div style="display:flex;align-items:baseline;gap:10px">
+                        <span class="ws-v ws-v-lg" id="wsUsed">&mdash;</span>
+                        <span class="ws-u">L today</span>
+                    </div>
+                    <div>
+                        <span class="ws-delta" id="wsChange"></span>
+                        <span class="ws-delta gain" id="wsCollected" style="margin-left:16px"></span>
+                    </div>
+                    <p class="ws-note" id="wsUsedNote"></p>
+                </div>
+            </div>
+
+            <div class="ws-card">
+                <div class="ws-card-head">
+                    <h2>Temperature</h2>
+                    <span class="ws-src">5 sensors &middot; 24h</span>
+                </div>
+                <div class="ws-body">
+                    <div class="ws-range" id="wsRange"></div>
+                    <div class="ws-ends">
+                        <span id="wsLow">&mdash;</span>
+                        <span id="wsHigh">&mdash;</span>
+                    </div>
+                    <div class="ws-avg">
+                        <span class="ws-v" id="wsAvg">&mdash;</span>
+                        <span class="ws-u" style="font-size:.78rem">&deg;C average across all five</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ws-links">
+                <a class="ws-link" href="/water-system/usage">
+                    <span class="material-icons">water_drop</span>
+                    <span><b>Water usage</b><small>Meter, tank level and rainfall</small></span>
+                    <span class="material-icons go">arrow_forward</span>
+                </a>
+                <a class="ws-link" href="/water-system/temperature">
+                    <span class="material-icons">thermostat</span>
+                    <span><b>Temperature</b><small>All five probes, graphed</small></span>
+                    <span class="material-icons go">arrow_forward</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/water_system.js') }}"></script>
+<script>
+async function loadOverview() {
+    try {
+        const [water, temp] = await Promise.all([
+            fetch('/api/water/summary').then(r => r.json()),
+            fetch('/api/temperature/summary?period=day').then(r => r.json())
+        ]);
+
+        if (water.error || temp.error) throw new Error('api error');
+
+        // ---- tank ----
+        WS.renderTank(water.tank);
+        WS.setStatus('wsStatus', 'wsDot', water.tank.last_reading, 'all sensors reporting');
+        document.getElementById('wsStamp').textContent = WS.clock();
+
+        // ---- water used ----
+        const t = water.today;
+        document.getElementById('wsUsed').textContent = WS.fmt(t.used_meter);
+
+        // A percentage against a near-zero baseline is noise ("1037% vs
+        // yesterday" when yesterday was 0.8 L). Below a few litres, show the
+        // absolute difference instead; the percentage only appears when
+        // yesterday is big enough to be a meaningful denominator.
+        const change = document.getElementById('wsChange');
+        const yest = (water.yesterday && water.yesterday.used_meter) || 0;
+        const delta = t.used_meter - yest;
+        if (water.change_pct === null || water.change_pct === undefined || Math.abs(delta) < 0.05) {
+            change.textContent = '';
+        } else {
+            const up = delta >= 0;
+            change.className = 'ws-delta ' + (up ? 'up' : 'down');
+            const figure = yest < 2
+                ? (up ? '+' : '−') + Math.abs(delta).toFixed(1) + ' L vs yesterday'
+                : Math.abs(water.change_pct) + '% vs yesterday';
+            change.innerHTML = '<span class="material-icons">' + (up ? 'north' : 'south') +
+                               '</span>' + figure;
+        }
+
+        const coll = document.getElementById('wsCollected');
+        coll.innerHTML = t.collected > 0
+            ? '<span class="material-icons">water_drop</span>' + WS.fmt(t.collected) + ' L collected'
+            : '';
+
+        // Be explicit when the level sensor contributed nothing, rather than
+        // letting a 0 read as "no water moved".
+        const note = document.getElementById('wsUsedNote');
+        if (t.readings_used === 0) {
+            note.className = 'ws-note warn';
+            note.textContent = 'Tank level is inside the blind band all day, so nothing can be ' +
+                               'derived from it — this figure is the flow meter alone.';
+        } else {
+            note.className = 'ws-note';
+            note.textContent = 'Tank level agrees at ' + WS.fmt(t.used_level) + ' L out' +
+                               (t.readings_rejected ? ' · ' + t.readings_rejected + ' implausible steps rejected' : '');
+        }
+
+        // ---- temperature spread ----
+        const sensors = (temp.sensors || []).filter(s => s.current !== undefined);
+        if (sensors.length && temp.low !== null) {
+            document.getElementById('wsLow').textContent  = WS.fmt(temp.low) + '° low';
+            document.getElementById('wsHigh').textContent = WS.fmt(temp.high) + '° high';
+            document.getElementById('wsAvg').textContent  = WS.fmt(temp.avg);
+
+            const span = (temp.high - temp.low) || 1;
+            const bar = document.getElementById('wsRange');
+            bar.textContent = '';
+            // Labels get placed by actual available space, not blind
+            // alternation: sensors cluster within a degree or two of each
+            // other while the day's range is wide, so fixed alternation still
+            // collided ("VatnDæla"). Greedy: try above the track, then below,
+            // and when a cluster is too tight for either row, drop that label
+            // - the dot and its tooltip remain.
+            const barWidth = bar.offsetWidth || 600;
+            const MIN_LABEL_GAP_PX = 54;
+            let lastTop = -Infinity, lastBottom = -Infinity;
+            [...sensors].sort((a, b) => a.current - b.current).forEach(s => {
+                const meta = WS.byId(s.sensor_id);
+                const frac = (s.current - temp.low) / span;
+                const px = frac * barWidth;
+
+                const pin = document.createElement('div');
+                pin.className = 'ws-pin';
+                pin.style.left = (frac * 100) + '%';
+                pin.style.background = meta ? meta.color : 'var(--primary)';
+                pin.title = s.display_name + ' · ' + s.current + '°C';
+
+                let row = null;
+                if (px - lastTop >= MIN_LABEL_GAP_PX) { row = 'top'; lastTop = px; }
+                else if (px - lastBottom >= MIN_LABEL_GAP_PX) { row = 'bottom'; lastBottom = px; }
+                if (row) {
+                    if (row === 'bottom') pin.classList.add('alt');
+                    const label = document.createElement('span');
+                    label.textContent = s.display_name;  // names come from the DB
+                    pin.appendChild(label);
+                }
+                bar.appendChild(pin);
+            });
+        }
+    } catch (e) {
+        console.error('overview load failed', e);
+        document.getElementById('wsStatus').textContent = 'could not load data';
+        document.getElementById('wsDot').className = 'ws-dot down';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadOverview();
+    setInterval(loadOverview, 30000);
+});
+</script>
+{% endblock %}

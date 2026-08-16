@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Temperature{% endblock %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/water_system.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ws">
+
+    <div class="ws-head">
+        <h1>Temperature</h1>
+        <span class="ws-status"><span class="ws-dot" id="wsDot"></span><span id="wsStatus">loading</span></span>
+        <span class="ws-stamp" id="wsStamp">&mdash;</span>
+    </div>
+
+    <nav class="ws-tabs">
+        <a href="/water-system">Overview</a>
+        <a href="/water-system/usage">Water usage</a>
+        <a href="/water-system/temperature" class="active">Temperature</a>
+    </nav>
+
+    <!-- One card per probe, colour-matched to its line on the graph. -->
+    <div class="ws-legend" id="wsLegend"></div>
+
+    <div class="ws-card ws-chart-card">
+        <div class="ws-card-head">
+            <h2>All probes</h2>
+            <span class="ws-src" id="wsBucketNote">&mdash;</span>
+        </div>
+        <div class="ws-controls" id="wsRange">
+            <button data-period="day" class="active">24h</button>
+            <button data-period="week">7d</button>
+            <button data-period="month">30d</button>
+        </div>
+        <div id="wsTempChart" class="ws-chart"></div>
+    </div>
+
+    <div class="ws-banner info" id="wsCoverage">
+        <span class="material-icons">info</span>
+        <span>&nbsp;</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="{{ url_for('static', filename='js/water_system.js') }}"></script>
+<script>
+let tempChart = null;
+let currentPeriod = 'day';
+
+function buildChart() {
+    const c = WS.theme();
+    tempChart = WS.init('wsTempChart');
+    if (!tempChart) return;
+
+    tempChart.setOption({
+        // Explicit palette as well as per-series colours: if either is missing
+        // ECharts falls back to its own defaults and the lines stop matching
+        // their legend swatches.
+        color: WS.sensors.map(s => s.color),
+        tooltip: WS.tooltip(c, ' °C'),
+        legend: {
+            data: WS.sensors.map(s => s.name), top: 4,
+            icon: 'roundRect', itemWidth: 14, itemHeight: 4, itemGap: 18,
+            textStyle: { color: c.textMuted, fontFamily: 'IBM Plex Mono, monospace', fontSize: 11 },
+            inactiveColor: c.border
+        },
+        grid: { left: 8, right: 16, bottom: 4, top: 44, containLabel: true },
+        xAxis: { type: 'time', ...WS.axis(c) },
+        yAxis: { type: 'value', scale: true, name: '°C',
+                 nameTextStyle: { color: c.textMuted, fontSize: 10 }, ...WS.axis(c) },
+        series: WS.sensors.map(s => ({
+            name: s.name, type: 'line', smooth: true, showSymbol: false,
+            symbol: 'circle', symbolSize: 6, data: [],
+            lineStyle: { width: 2.5, color: s.color },
+            itemStyle: { color: s.color },
+            emphasis: { focus: 'series', lineStyle: { width: 4 } }
+        }))
+    });
+}
+
+function renderLegend(summary) {
+    const box = document.getElementById('wsLegend');
+    box.textContent = '';
+
+    WS.sensors.forEach(s => {
+        const d = (summary.sensors || []).find(x => x.sensor_id === s.id);
+        const card = document.createElement('div');
+        card.className = 'ws-leg';
+        card.style.setProperty('--c', s.color);
+
+        const name = document.createElement('div');
+        name.className = 'n';
+        name.textContent = s.name;                 // textContent: names come from the DB
+        const gloss = document.createElement('small');
+        gloss.textContent = s.gloss;
+        name.appendChild(gloss);
+
+        const value = document.createElement('div');
+        value.className = 'v';
+        value.textContent = d && d.current !== undefined ? WS.fmt(d.current) + '°' : '--';
+
+        const range = document.createElement('div');
+        range.className = 'r';
+        range.textContent = d ? WS.fmt(d.low) + '° to ' + WS.fmt(d.high) + '°' : 'no readings';
+
+        card.append(name, value, range);
+        box.appendChild(card);
+    });
+}
+
+async function load(period) {
+    try {
+        const [summary, history] = await Promise.all([
+            fetch('/api/temperature/summary?period=' + period).then(r => r.json()),
+            fetch('/api/temperature/history?period=' + period).then(r => r.json())
+        ]);
+        if (summary.error || history.error) throw new Error('api error');
+
+        // display_name from device_settings is authoritative over the fallbacks.
+        const names = {};
+        (summary.sensors || []).forEach(s => names[s.sensor_id] = s.display_name);
+        WS.applyNames(names);
+
+        renderLegend(summary);
+        document.getElementById('wsStamp').textContent = WS.clock();
+        document.getElementById('wsStatus').textContent =
+            (summary.sensors || []).length + ' probes · ' +
+            WS.fmt(summary.low) + '° to ' + WS.fmt(summary.high) + '°';
+
+        const mins = Math.round(history.bucket_seconds / 60);
+        document.getElementById('wsBucketNote').textContent =
+            mins >= 60 ? (mins / 60) + 'h average per point' : mins + ' min average per point';
+
+        if (tempChart) {
+            tempChart.setOption({
+                legend: { data: WS.sensors.map(s => s.name) },
+                series: WS.sensors.map(s => ({
+                    name: s.name,
+                    data: (history.series && history.series[s.id]) || []
+                }))
+            });
+        }
+
+        // Say plainly when a series has little or no history, rather than
+        // letting a short line imply the sensor is broken.
+        const thin = WS.sensors
+            .map(s => ({ s, n: ((history.series || {})[s.id] || []).length }))
+            .filter(x => x.n < 5);
+        const box = document.getElementById('wsCoverage');
+        const text = box.querySelector('span:last-child');
+        if (thin.length) {
+            box.className = 'ws-banner warn';
+            box.querySelector('.material-icons').textContent = 'warning';
+            text.textContent = 'Little or no data over this range for: ' +
+                thin.map(x => x.s.name).join(', ') + '. These probes were installed recently.';
+        } else {
+            box.className = 'ws-banner info';
+            box.querySelector('.material-icons').textContent = 'info';
+            text.textContent = 'Averaged from raw readings, not the hourly rollup table — ' +
+                'that table\'s hour boundaries are inconsistent and its coverage is patchy.';
+        }
+    } catch (e) {
+        console.error('temperature load failed', e);
+        document.getElementById('wsStatus').textContent = 'could not load data';
+        document.getElementById('wsDot').className = 'ws-dot down';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    buildChart();
+    load(currentPeriod);
+    setInterval(() => load(currentPeriod), 30000);
+
+    document.getElementById('wsRange').addEventListener('click', ev => {
+        const btn = ev.target.closest('button');
+        if (!btn) return;
+        document.querySelectorAll('#wsRange button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPeriod = btn.dataset.period;
+        load(currentPeriod);
+    });
+
+    window.addEventListener('resize', () => tempChart && tempChart.resize());
+});
+</script>
+{% endblock %}

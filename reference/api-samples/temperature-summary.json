@@ -1,0 +1,53 @@
+{
+    "avg": 13.3,
+    "high": 17.9,
+    "low": 5.6,
+    "period": "day",
+    "sensors": [
+        {
+            "avg": 13.7,
+            "count": 1609,
+            "current": 14.1,
+            "display_name": "Vatn",
+            "high": 14.1,
+            "low": 13.5,
+            "sensor_id": "DS18B20_B8F628"
+        },
+        {
+            "avg": 10.6,
+            "count": 1608,
+            "current": 5.9,
+            "display_name": "\u00dati",
+            "high": 15.0,
+            "low": 5.6,
+            "sensor_id": "DS18B20_53E228"
+        },
+        {
+            "avg": 14.0,
+            "count": 2590,
+            "current": 13.1,
+            "display_name": "D\u00e6la",
+            "high": 17.9,
+            "low": 12.0,
+            "sensor_id": "AHT10_Bus0_0x38"
+        },
+        {
+            "avg": 13.7,
+            "count": 2590,
+            "current": 11.7,
+            "display_name": "Inntak",
+            "high": 16.6,
+            "low": 11.1,
+            "sensor_id": "SHT31_Bus1_0x44"
+        },
+        {
+            "avg": 13.7,
+            "count": 2592,
+            "current": 12.6,
+            "display_name": "Tankur",
+            "high": 16.0,
+            "low": 12.2,
+            "sensor_id": "BMP280_Bus1_0x76"
+        }
+    ]
+}

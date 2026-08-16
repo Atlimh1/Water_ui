@@ -1,0 +1,48 @@
+{
+    "change_pct": -100,
+    "flow": {
+        "flow_lpm": 0.0,
+        "idle_seconds": 2043,
+        "last_pulse": "2026-08-16 00:02:34",
+        "last_reading": "2026-08-16 00:36:37",
+        "reporting": true,
+        "total_liters": 1727.36
+    },
+    "tank": {
+        "blind_cm": 25,
+        "capacity_nominal": 1000,
+        "capacity_working": 844,
+        "clamped": true,
+        "depth_cm": 96,
+        "distance_cm": 25.299999237060547,
+        "frozen_hours": 0.6,
+        "frozen_since": "2026-08-16 00:02:35",
+        "last_reading": "2026-08-16 00:36:37",
+        "litres": 736,
+        "litres_max": 844,
+        "litres_per_cm": 10.42,
+        "overflow_cm": 15,
+        "suspect": false,
+        "unresolved_litres": 104
+    },
+    "today": {
+        "collected": 0.0,
+        "day_offset": 0,
+        "deadband_cm": 2.0,
+        "readings_rejected": 0,
+        "readings_total": 62,
+        "readings_used": 0,
+        "used_level": 0.0,
+        "used_meter": 0.0
+    },
+    "yesterday": {
+        "collected": 0.0,
+        "day_offset": 1,
+        "deadband_cm": 2.0,
+        "readings_rejected": 0,
+        "readings_total": 1412,
+        "readings_used": 0,
+        "used_level": 0.0,
+        "used_meter": 977.1
+    }
+}
